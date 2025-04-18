@@ -1,0 +1,1214 @@
+
+# Assume df1 has at least two columns named X and Y for coordinates
+
+library(ggplot2)
+library(tidyverse)
+library(Ballmapper)
+
+set.seed(123)  # For reproducibility
+
+x1<-runif(500,0,1)
+x2<-runif(500,0,1)
+
+df1<-as.data.frame(cbind(x1,x2))
+names(df1)<-c("X1","X2")
+
+# Randomly select one point
+
+selected_index <- sample(1:nrow(df1), 1)
+selected_point <- df1[selected_index, c("X1", "X2")]
+
+# Compute Euclidean distance to all other points
+df1$distance <- sqrt((df1$X1 - selected_point$X1)^2 + (df1$X2 - selected_point$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius <- ifelse(df1$distance <= 0.4, 1, 0)
+
+# Make a dataframe for the selected points
+
+sel<-as.data.frame(selected_point)
+names(sel)<-c("X1","X2")
+
+# Create a circle around the selected_point
+
+theta <- seq(0, 2 * pi, length.out = 200)
+radius <- 0.4
+circle_df <- data.frame(
+  X1 = selected_point$X1 + radius * cos(theta),
+  X2 = selected_point$X2 + radius * sin(theta)
+)
+
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(within_radius))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+  scale_color_manual(
+    values = c("0" = "grey70", "1" = "red"),
+    labels = c("Uncovered", "Ball 1"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2")
+
+ggsave("demo001.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+# Let us create a new set of variables for the 6 balls
+
+df1$ball1<-df1$within_radius
+df1$ball2<-0
+df1$ball3<-0
+df1$ball4<-0
+df1$ball5<-0
+df1$ball6<-0
+df1$intersection<-0
+
+# Now we identify the uncovered points
+
+df_outside_radius <- df1[df1$within_radius == 0, ]
+
+# Select a point at random from the uncovered points
+
+selected_point2 <- df_outside_radius[sample(nrow(df_outside_radius), 1), ]
+
+# Compute Euclidean distance to all other points
+df1$distance <- sqrt((df1$X1 - selected_point2$X1)^2 + (df1$X2 - selected_point2$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius2 <- ifelse(df1$distance <= 0.4, 1, 0)
+df1$with<-df1$within_radius+df1$within_radius2
+
+# Update the only ball 2 dummy and a dummy for the intersection
+df1$ball2<-ifelse(df1$within_radius2==1&df1$ball1==0,2,0)
+df1$intersection<-ifelse(df1$within_radius2==1&df1$ball1==1,99,0)
+
+df1$member<-df1$ball1+df1$ball2+df1$intersection
+
+# Prepare the second selected point for merging:
+
+selected_point2<-as.data.frame(cbind(selected_point2$X1,selected_point2$X2))
+names(selected_point2)<-c("X1","X2")
+
+# Bind the two selected points together
+
+sel = as.data.frame(rbind.data.frame(selected_point,selected_point2))
+names(sel)<-c("X1","X2")
+
+# Create a second circle around the second point
+
+theta <- seq(0, 2 * pi, length.out = 200)
+radius <- 0.4
+circle_df2 <- data.frame(
+  X1 = selected_point2$X1 + radius * cos(theta),
+  X2 = selected_point2$X2 + radius * sin(theta)
+)
+
+# Generate the plot
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+  scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2")
+
+ggsave("demo002.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+
+# Now we need a third ball, so let us remove the points which are already considered to be members and find an uncovered point
+
+df_outside_radius <- df1[df1$member==0, ]
+
+selected_point3 <- df_outside_radius[sample(nrow(df_outside_radius), 1), ]
+
+# Compute Euclidean distance to all other points
+
+df1$distance <- sqrt((df1$X1 - selected_point3$X1)^2 + (df1$X2 - selected_point3$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius3 <- ifelse(df1$distance <= 0.4, 1, 0)
+
+df1$ball3<-ifelse(df1$within_radius3==1&df1$ball1==0&df1$ball2==0&df1$intersection==0,3,0)
+df1$intersection2<-ifelse(df1$within_radius3==1&df1$within_radius==1,99,0)
+df1$intersection2<-ifelse(df1$within_radius3==1&df1$within_radius2==1,99,df1$intersection2)
+df1$intersection99<-df1$intersection+df1$intersection2
+df1$intersection99<-ifelse(df1$intersection99>0,99,0)
+
+# Prepare selected point 3 for adding to the dataframe of landmarks
+
+selected_point3<-as.data.frame(cbind(selected_point3$X1,selected_point3$X2))
+names(selected_point3)<-c("X1","X2")
+
+# Add to the dataframe of landmarks
+
+sel<-as.data.frame(rbind.data.frame(sel,selected_point3))
+
+# Update the membership variable to allow for the third ball
+
+df1$member<-df1$ball1+df1$ball2+df1$ball3+df1$intersection99
+
+df1$member<-ifelse(df1$member<4,df1$member,100)
+
+# Now let us create a third cicle:
+
+circle_df3 <- data.frame(
+  X1 = selected_point3$X1 + radius * cos(theta),
+  X2 = selected_point3$X2 + radius * sin(theta)
+)
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+  scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo003.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+##########
+# Ball 4 #
+##########
+
+# Identify points that are not yet in a ball
+
+df_outside_radius <- df1[df1$member==0, ]
+
+# Select a point at random
+
+selected_point4 <- df_outside_radius[sample(nrow(df_outside_radius), 1), ]
+
+# Compute Euclidean distance to all other points
+
+df1$distance <- sqrt((df1$X1 - selected_point4$X1)^2 + (df1$X2 - selected_point4$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius4 <- ifelse(df1$distance <= 0.4, 1, 0)
+
+# Convert the selected point into a dataframe
+
+selected_point4<-as.data.frame(cbind(selected_point4$X1,selected_point4$X2))
+names(selected_point4)<-c("X1","X2")
+
+# Bind the 4th landmark to the landmark data set
+
+sel<-as.data.frame(rbind.data.frame(sel,selected_point4))
+
+# Create the intersections and membership
+
+df1$ball4<-ifelse(df1$within_radius4==1&df1$ball1==0&df1$ball2==0&df1$ball3==0&df1$intersection99==0,4,0)
+df1$intersection3<-ifelse(df1$within_radius4==1&df1$within_radius==1,99,0)
+df1$intersection3<-ifelse(df1$within_radius4==1&df1$within_radius2==1,99,df1$intersection3)
+df1$intersection3<-ifelse(df1$within_radius4==1&df1$within_radius3==1,99,df1$intersection3)
+df1$intersection99<-df1$intersection+df1$intersection2+df1$intersection3
+df1$intersection99<-ifelse(df1$intersection99>0,99,0)
+
+# Update the member list
+
+df1$member<-df1$ball1+df1$ball2+df1$ball3+df1$ball4+df1$intersection99
+
+df1$member<-ifelse(df1$member<5,df1$member,100)
+
+# Draw the circle for the fourth landmark
+
+circle_df4 <- data.frame(
+  X1 = selected_point4$X1 + radius * cos(theta),
+  X2 = selected_point4$X2 + radius * sin(theta)
+)
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df4, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+   scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "4" = "darkblue", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Ball 4", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo005.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+##########
+# Ball 5 #
+##########
+
+# Identify points that are not yet in a ball
+
+df_outside_radius <- df1[df1$member==0, ]
+
+# Select a point at random
+
+selected_point5 <- df_outside_radius[sample(nrow(df_outside_radius), 1), ]
+
+# Compute Euclidean distance to all other points
+
+df1$distance <- sqrt((df1$X1 - selected_point5$X1)^2 + (df1$X2 - selected_point5$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius5 <- ifelse(df1$distance <= 0.4, 1, 0)
+
+# Convert the selected point into a dataframe
+
+selected_point5<-as.data.frame(cbind(selected_point5$X1,selected_point5$X2))
+names(selected_point5)<-c("X1","X2")
+
+# Bind the 5th landmark to the landmark data set
+
+sel<-as.data.frame(rbind.data.frame(sel,selected_point5))
+
+# Create the intersections and membership
+
+df1$ball5<-ifelse(df1$within_radius5==1&df1$ball1==0&df1$ball2==0&df1$ball3==0&df1$ball4==0&df1$intersection99==0,5,0)
+df1$intersection4<-ifelse(df1$within_radius5==1&df1$within_radius==1,99,0)
+df1$intersection4<-ifelse(df1$within_radius5==1&df1$within_radius2==1,99,df1$intersection4)
+df1$intersection4<-ifelse(df1$within_radius5==1&df1$within_radius3==1,99,df1$intersection4)
+df1$intersection4<-ifelse(df1$within_radius5==1&df1$within_radius4==1,99,df1$intersection4)
+df1$intersection99<-df1$intersection+df1$intersection2+df1$intersection3+df1$intersection4
+df1$intersection99<-ifelse(df1$intersection99>0,99,0)
+
+# Update the member list
+
+df1$member<-df1$ball1+df1$ball2+df1$ball3+df1$ball4+df1$ball5+df1$intersection99
+
+df1$member<-ifelse(df1$member<6,df1$member,100)
+
+# Draw the circle for the fifth landmark
+
+circle_df5 <- data.frame(
+  X1 = selected_point5$X1 + radius * cos(theta),
+  X2 = selected_point5$X2 + radius * sin(theta)
+)
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df4, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df5, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+   scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "4" = "darkblue", "5" = "darkred","100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Ball 4", "Ball 5", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo006.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+# To add a grid
+
+sel$id<-seq(1:nrow(sel))
+pairs <- expand.grid(id1 = sel$id, id2 = sel$id) %>%
+  filter(id1 < id2)  # avoid duplicates and self-pairs
+
+# Join coordinates
+pairs <- pairs %>%
+  left_join(sel, by = c("id1" = "id")) %>%
+  rename(x1 = X1, y1 = X2) %>%
+  left_join(sel, by = c("id2" = "id")) %>%
+  rename(x2 = X1, y2 = X2)
+
+# Compute distances
+pairs <- pairs %>%
+  mutate(distance = sqrt((x1 - x2)^2 + (y1 - y2)^2)) %>%
+  filter(distance < 0.8)
+
+# Finally generate the plot
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df4, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df5, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+  geom_segment(data = pairs,
+               aes(x = x1, y = y1, xend = x2, yend = y2),
+               color = "black") +
+   scale_color_manual(
+    values = c("1" = "red", "2" = "blue", "3" = "green", "4" = "darkblue", "5" = "darkred", "100" = "purple"),
+    labels = c("Ball 1", "Ball 2", "Ball 3", "Ball 4", "Ball 5", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+
+ggsave("demo008.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+
+############################
+# Recreating the R Package #
+############################
+
+# Recreate the dataset
+
+set.seed(123)  # For reproducibility
+
+x1<-runif(500,0,1)
+x2<-runif(500,0,1)
+
+df1<-as.data.frame(cbind(x1,x2))
+names(df1)<-c("X1","X2")
+
+# Add a column with the point IDs
+
+df1$pt<-seq(1:nrow(df1)) 
+
+# The Ballmapper implementation chooses the first unallocated point in the dataset
+
+selected_point <- df1[1, c("X1", "X2")]
+
+# Compute Euclidean distance to all other points
+
+df1$distance <- sqrt((df1$X1 - selected_point$X1)^2 + (df1$X2 - selected_point$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius <- ifelse(df1$distance <= 0.4, 1, 0)
+
+# Let us create a new set of variables for the 6 balls
+
+df1$ball1<-df1$within_radius
+df1$ball2<-0
+df1$ball3<-0
+df1$ball4<-0
+df1$ball5<-0
+df1$ball6<-0
+df1$ball7<-0
+df1$intersection<-0
+
+# Make a dataframe for the selected points
+
+sel<-as.data.frame(selected_point)
+names(sel)<-c("X1","X2")
+
+# Create a circle around the selected_point
+
+theta <- seq(0, 2 * pi, length.out = 200)
+radius <- 0.4
+circle_df <- data.frame(
+  X1 = selected_point$X1 + radius * cos(theta),
+  X2 = selected_point$X2 + radius * sin(theta)
+)
+
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(within_radius))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+  scale_color_manual(
+    values = c("0" = "grey70", "1" = "red"),
+    labels = c("Uncovered", "Ball 1"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2")
+
+ggsave("demo101.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+# When selecting the second landmark, R will look for the lowest id in the uncovered set.
+
+unc<-subset(df1,df1$within_radius==0)
+minid<-min(unc$pt)
+
+# We now identify the point in the dataset
+
+selected_point2 <- df1[minid, c("X1", "X2")]
+
+# Compute Euclidean distance to all other points
+df1$distance <- sqrt((df1$X1 - selected_point2$X1)^2 + (df1$X2 - selected_point2$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius2 <- ifelse(df1$distance <= 0.4, 1, 0)
+df1$with<-df1$within_radius+df1$within_radius2
+
+# Update the only ball 2 dummy and a dummy for the intersection
+
+df1$ball2<-ifelse(df1$within_radius2==1&df1$ball1==0,2,0)
+df1$intersection<-ifelse(df1$within_radius2==1&df1$ball1==1,99,0)
+
+df1$member<-df1$ball1+df1$ball2+df1$intersection
+
+# Prepare the second selected point for merging:
+
+selected_point2<-as.data.frame(cbind(selected_point2$X1,selected_point2$X2))
+names(selected_point2)<-c("X1","X2")
+
+# Bind the two selected points together
+
+sel = as.data.frame(rbind.data.frame(selected_point,selected_point2))
+names(sel)<-c("X1","X2")
+
+# Create a second circle around the second point
+
+theta <- seq(0, 2 * pi, length.out = 200)
+radius <- 0.4
+circle_df2 <- data.frame(
+  X1 = selected_point2$X1 + radius * cos(theta),
+  X2 = selected_point2$X2 + radius * sin(theta)
+)
+
+# Generate the plot
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+  scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2")
+
+ggsave("demo102.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+##########
+# Ball 3 #
+##########
+
+# When selecting the third landmark, R will again look for the lowest id in the uncovered set.
+
+unc<-subset(df1,df1$member==0)
+minid<-min(unc$pt)
+
+# We now identify the point in the dataset
+
+selected_point3 <- df1[minid, c("X1", "X2")]
+
+# Compute Euclidean distance to all other points
+
+df1$distance <- sqrt((df1$X1 - selected_point3$X1)^2 + (df1$X2 - selected_point3$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius3 <- ifelse(df1$distance <= 0.4, 1, 0)
+
+df1$ball3<-ifelse(df1$within_radius3==1&df1$ball1==0&df1$ball2==0&df1$intersection==0,3,0)
+df1$intersection2<-ifelse(df1$within_radius3==1&df1$within_radius==1,99,0)
+df1$intersection2<-ifelse(df1$within_radius3==1&df1$within_radius2==1,99,df1$intersection2)
+df1$intersection99<-df1$intersection+df1$intersection2
+df1$intersection99<-ifelse(df1$intersection99>0,99,0)
+
+# Prepare selected point 3 for adding to the dataframe of landmarks
+
+selected_point3<-as.data.frame(cbind(selected_point3$X1,selected_point3$X2))
+names(selected_point3)<-c("X1","X2")
+
+# Add to the dataframe of landmarks
+
+sel<-as.data.frame(rbind.data.frame(sel,selected_point3))
+
+# Update the membership variable to allow for the third ball
+
+df1$member<-df1$ball1+df1$ball2+df1$ball3+df1$intersection99
+
+df1$member<-ifelse(df1$member<4,df1$member,100)
+
+# Now let us create a third cicle:
+
+circle_df3 <- data.frame(
+  X1 = selected_point3$X1 + radius * cos(theta),
+  X2 = selected_point3$X2 + radius * sin(theta)
+)
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+  scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo103.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+##########
+# Ball 4 #
+##########
+
+# When selecting the fourth landmark, R will again look for the lowest id in the uncovered set.
+
+unc<-subset(df1,df1$member==0)
+minid<-min(unc$pt)
+
+# We now identify the point in the dataset
+
+selected_point4 <- df1[minid, c("X1", "X2")]
+
+# Compute Euclidean distance to all other points
+
+df1$distance <- sqrt((df1$X1 - selected_point4$X1)^2 + (df1$X2 - selected_point4$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius4 <- ifelse(df1$distance <= 0.4, 1, 0)
+
+# Convert the selected point into a dataframe
+
+selected_point4<-as.data.frame(cbind(selected_point4$X1,selected_point4$X2))
+names(selected_point4)<-c("X1","X2")
+
+# Bind the 4th landmark to the landmark data set
+
+sel<-as.data.frame(rbind.data.frame(sel,selected_point4))
+
+# Create the intersections and membership
+
+df1$ball4<-ifelse(df1$within_radius4==1&df1$ball1==0&df1$ball2==0&df1$ball3==0&df1$intersection99==0,4,0)
+df1$intersection3<-ifelse(df1$within_radius4==1&df1$within_radius==1,99,0)
+df1$intersection3<-ifelse(df1$within_radius4==1&df1$within_radius2==1,99,df1$intersection3)
+df1$intersection3<-ifelse(df1$within_radius4==1&df1$within_radius3==1,99,df1$intersection3)
+df1$intersection99<-df1$intersection+df1$intersection2+df1$intersection3
+df1$intersection99<-ifelse(df1$intersection99>0,99,0)
+
+# Update the member list
+
+df1$member<-df1$ball1+df1$ball2+df1$ball3+df1$ball4+df1$intersection99
+
+df1$member<-ifelse(df1$member<5,df1$member,100)
+
+# Draw the circle for the fourth landmark
+
+circle_df4 <- data.frame(
+  X1 = selected_point4$X1 + radius * cos(theta),
+  X2 = selected_point4$X2 + radius * sin(theta)
+)
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df4, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+   scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "4" = "darkblue", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Ball 4", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo104.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+##########
+# Ball 5 #
+##########
+
+# When selecting the fifth landmark, R will again look for the lowest id in the uncovered set.
+
+unc<-subset(df1,df1$member==0)
+minid<-min(unc$pt)
+
+# We now identify the point in the dataset
+
+selected_point5 <- df1[minid, c("X1", "X2")]
+
+# Compute Euclidean distance to all other points
+
+df1$distance <- sqrt((df1$X1 - selected_point5$X1)^2 + (df1$X2 - selected_point5$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius5 <- ifelse(df1$distance <= 0.4, 1, 0)
+
+# Convert the selected point into a dataframe
+
+selected_point5<-as.data.frame(cbind(selected_point5$X1,selected_point5$X2))
+names(selected_point5)<-c("X1","X2")
+
+# Bind the 5th landmark to the landmark data set
+
+sel<-as.data.frame(rbind.data.frame(sel,selected_point5))
+
+# Create the intersections and membership
+
+df1$ball5<-ifelse(df1$within_radius5==1&df1$ball1==0&df1$ball2==0&df1$ball3==0&df1$ball4==0&df1$intersection99==0,5,0)
+df1$intersection4<-ifelse(df1$within_radius5==1&df1$within_radius==1,99,0)
+df1$intersection4<-ifelse(df1$within_radius5==1&df1$within_radius2==1,99,df1$intersection4)
+df1$intersection4<-ifelse(df1$within_radius5==1&df1$within_radius3==1,99,df1$intersection4)
+df1$intersection4<-ifelse(df1$within_radius5==1&df1$within_radius4==1,99,df1$intersection4)
+df1$intersection99<-df1$intersection+df1$intersection2+df1$intersection3+df1$intersection4
+df1$intersection99<-ifelse(df1$intersection99>0,99,0)
+
+# Update the member list
+
+df1$member<-df1$ball1+df1$ball2+df1$ball3+df1$ball4+df1$ball5+df1$intersection99
+
+df1$member<-ifelse(df1$member<6,df1$member,100)
+
+# Draw the circle for the fifth landmark
+
+circle_df5 <- data.frame(
+  X1 = selected_point5$X1 + radius * cos(theta),
+  X2 = selected_point5$X2 + radius * sin(theta)
+)
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df4, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df5, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+   scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "4" = "darkblue", "5" = "darkred","100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Ball 4", "Ball 5", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo105.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+##########
+# Ball 6 #
+##########
+
+# When selecting the sixth landmark, R will again look for the lowest id in the uncovered set.
+
+unc<-subset(df1,df1$member==0)
+minid<-min(unc$pt)
+
+# We now identify the point in the dataset
+
+selected_point6 <- df1[minid, c("X1", "X2")]
+
+# Compute Euclidean distance to all other points
+
+df1$distance <- sqrt((df1$X1 - selected_point6$X1)^2 + (df1$X2 - selected_point6$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius6 <- ifelse(df1$distance <= 0.4, 1, 0)
+
+# Convert the selected point into a dataframe
+
+selected_point6<-as.data.frame(cbind(selected_point6$X1,selected_point6$X2))
+names(selected_point6)<-c("X1","X2")
+
+# Bind the 6th landmark to the landmark data set
+
+sel<-as.data.frame(rbind.data.frame(sel,selected_point6))
+
+# Create the intersections and membership
+
+df1$ball6<-ifelse(df1$within_radius6==1&df1$ball1==0&df1$ball2==0&df1$ball3==0&df1$ball4==0&df1$ball5==0&df1$intersection99==0,6,0)
+df1$intersection5<-ifelse(df1$within_radius6==1&df1$within_radius==1,99,0)
+df1$intersection5<-ifelse(df1$within_radius6==1&df1$within_radius2==1,99,df1$intersection5)
+df1$intersection5<-ifelse(df1$within_radius6==1&df1$within_radius3==1,99,df1$intersection5)
+df1$intersection5<-ifelse(df1$within_radius6==1&df1$within_radius4==1,99,df1$intersection5)
+df1$intersection5<-ifelse(df1$within_radius6==1&df1$within_radius5==1,99,df1$intersection5)
+df1$intersection99<-df1$intersection+df1$intersection2+df1$intersection3+df1$intersection4+df1$intersection5
+df1$intersection99<-ifelse(df1$intersection99>0,99,0)
+
+# Update the member list
+
+df1$member<-df1$ball1+df1$ball2+df1$ball3+df1$ball4+df1$ball5+df1$ball6+df1$intersection99
+
+df1$member<-ifelse(df1$member<8,df1$member,100)
+
+# Draw the circle for the fifth landmark
+
+circle_df6 <- data.frame(
+  X1 = selected_point6$X1 + radius * cos(theta),
+  X2 = selected_point6$X2 + radius * sin(theta)
+)
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df4, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df5, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+geom_path(data = circle_df6, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+   scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "4" = "darkblue", "5" = "darkred","6" = "orange", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Ball 4", "Ball 5", "Ball 6", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo106.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+##########
+# Ball 7 #
+##########
+
+# When selecting the seventh landmark, R will again look for the lowest id in the uncovered set.
+
+unc<-subset(df1,df1$member==0)
+minid<-min(unc$pt)
+
+# We now identify the point in the dataset
+
+selected_point7 <- df1[minid, c("X1", "X2")]
+
+# Compute Euclidean distance to all other points
+
+# Compute Euclidean distance to all other points
+
+df1$distance <- sqrt((df1$X1 - selected_point7$X1)^2 + (df1$X2 - selected_point7$X2)^2)
+
+# Create dummy variable: 1 if within radius 0.4, else 0
+
+df1$within_radius7 <- ifelse(df1$distance <= 0.4, 1, 0)
+
+# Convert the selected point into a dataframe
+
+selected_point7<-as.data.frame(cbind(selected_point7$X1,selected_point7$X2))
+names(selected_point7)<-c("X1","X2")
+
+# Bind the 6th landmark to the landmark data set
+
+sel<-as.data.frame(rbind.data.frame(sel,selected_point7))
+
+# Create the intersections and membership
+
+df1$ball7<-ifelse(df1$within_radius7==1&df1$ball1==0&df1$ball2==0&df1$ball3==0&df1$ball4==0&df1$ball5==0&df1$ball6==0,df1$intersection99==0,7,0)
+df1$intersection6<-ifelse(df1$within_radius7==1&df1$within_radius==1,99,0)
+df1$intersection6<-ifelse(df1$within_radius7==1&df1$within_radius2==1,99,df1$intersection6)
+df1$intersection6<-ifelse(df1$within_radius7==1&df1$within_radius3==1,99,df1$intersection6)
+df1$intersection6<-ifelse(df1$within_radius7==1&df1$within_radius4==1,99,df1$intersection6)
+df1$intersection6<-ifelse(df1$within_radius7==1&df1$within_radius5==1,99,df1$intersection6)
+df1$intersection6<-ifelse(df1$within_radius7==1&df1$within_radius6==1,99,df1$intersection6)
+df1$intersection99<-df1$intersection+df1$intersection2+df1$intersection3+df1$intersection4+df1$intersection5+df1$intersection6
+df1$intersection99<-ifelse(df1$intersection99>0,99,0)
+
+# Update the member list
+
+df1$member<-df1$ball1+df1$ball2+df1$ball3+df1$ball4+df1$ball5+df1$ball6+df1$ball7+df1$intersection99
+
+df1$member<-ifelse(df1$member<9,df1$member,100)
+
+# Draw the circle for the fifth landmark
+
+circle_df7 <- data.frame(
+  X1 = selected_point7$X1 + radius * cos(theta),
+  X2 = selected_point7$X2 + radius * sin(theta)
+)
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df4, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df5, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df6, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df7, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+   scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "4" = "darkblue", "5" = "darkred","6" = "orange","7" = "darkgreen", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Ball 4", "Ball 5", "Ball 6", "Ball 7", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo107.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+# To add a grid
+
+sel$id<-seq(1:nrow(sel))
+pairs <- expand.grid(id1 = sel$id, id2 = sel$id) %>%
+  filter(id1 < id2)  # avoid duplicates and self-pairs
+
+# Join coordinates
+pairs <- pairs %>%
+  left_join(sel, by = c("id1" = "id")) %>%
+  rename(x1 = X1, y1 = X2) %>%
+  left_join(sel, by = c("id2" = "id")) %>%
+  rename(x2 = X1, y2 = X2)
+
+# Compute distances
+pairs <- pairs %>%
+  mutate(distance = sqrt((x1 - x2)^2 + (y1 - y2)^2)) %>%
+  filter(distance < 0.8)
+
+# Finally generate the plot
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df4, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df5, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df6, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df7, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = sel, aes(x=X1, y=X2), color="black",size=4)+
+  geom_segment(data = pairs,
+               aes(x = x1, y = y1, xend = x2, yend = y2),
+               color = "black") +
+   scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "4" = "darkblue", "5" = "darkred","6" = "orange","7" = "darkgreen", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Ball 4", "Ball 5", "Ball 6", "Ball 7", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo108.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+##################
+# Size the Balls #
+##################
+
+# The balls are sized according to the number of points within the ball. To do this we can calculate how many points are in each ball
+
+ptct<-as.data.frame(matrix(0,nrow=7,ncol=2))
+names(ptct)<-c("Ball","Count")
+
+ptct$Ball<-seq(1:7)
+
+df1a<-subset(df1,df1$within_radius>0)
+ptct$Count[1]<-nrow(df1a)
+df1a<-subset(df1,df1$within_radius2>0)
+ptct$Count[2]<-nrow(df1a)
+df1a<-subset(df1,df1$within_radius3>0)
+ptct$Count[3]<-nrow(df1a)
+df1a<-subset(df1,df1$within_radius4>0)
+ptct$Count[4]<-nrow(df1a)
+df1a<-subset(df1,df1$within_radius5>0)
+ptct$Count[5]<-nrow(df1a)
+df1a<-subset(df1,df1$within_radius6>0)
+ptct$Count[6]<-nrow(df1a)
+df1a<-subset(df1,df1$within_radius7>0)
+ptct$Count[7]<-nrow(df1a)
+
+ptct<-as.data.frame(cbind(sel,ptct))
+
+min_val<-min(ptct$Count)
+max_val<-max(ptct$Count)
+
+ptct$C_scaled <- 2 + (ptct$Count - min_val) * (15 - 5) / (max_val - min_val)
+
+ggplot(df1, aes(x = X1, y = X2, color = factor(member))) +
+  geom_point(size = 2) +
+  geom_path(data = circle_df, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df2, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df3, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df4, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df5, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df6, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_path(data = circle_df7, aes(x = X1, y = X2),
+            inherit.aes = FALSE, linetype = "dotted", color = "black") +
+  geom_point(data = ptct, aes(x=X1, y=X2), color="black",size= ptct$C_scaled)+
+  geom_segment(data = pairs,
+               aes(x = x1, y = y1, xend = x2, yend = y2),
+               color = "black") +
+   scale_color_manual(
+    values = c("0" = "grey70", "1" = "red", "2" = "blue", "3" = "green", "4" = "darkblue", "5" = "darkred","6" = "orange","7" = "darkgreen", "100" = "purple"),
+    labels = c("Uncovered", "Ball 1", "Ball 2", "Ball 3", "Ball 4", "Ball 5", "Ball 6", "Ball 7", "Intersection"),
+    name = "Ball Membership"
+  ) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color="Ball Membership")
+
+ggsave("demo109.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+ggplot(ptct, aes(x = X1, y = X2)) +
+  geom_point(size = ptct$C_scaled) +
+  geom_segment(data = pairs,
+               aes(x = x1, y = y1, xend = x2, yend = y2),
+               color = "black") +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2")
+
+ggsave("demo110.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+#################################################
+# Version with Coloration - Not step by step	#
+#################################################
+
+# Now let us add an outcome
+
+df1$Y<-df1$X1+df1$X2
+
+
+ggplot(data = df1, aes(x = X1, y = X2, color = Y)) +
+  geom_point(size = 3) +
+  scale_color_gradientn(colours = rainbow(7)) +  # Rainbow color scale
+  theme_minimal() +
+  labs(color = "Y Value")  # Title for colorbar
+
+ggsave("demo201.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+# Repeat the subset process 
+
+df1a<-subset(df1,df1$within_radius>0)
+ptct$Color[1]<-mean(df1a$Y)
+df1a<-subset(df1,df1$within_radius2>0)
+ptct$Color[2]<-mean(df1a$Y)
+df1a<-subset(df1,df1$within_radius3>0)
+ptct$Color[3]<-mean(df1a$Y)
+df1a<-subset(df1,df1$within_radius4>0)
+ptct$Color[4]<-mean(df1a$Y)
+df1a<-subset(df1,df1$within_radius5>0)
+ptct$Color[5]<-mean(df1a$Y)
+df1a<-subset(df1,df1$within_radius6>0)
+ptct$Color[6]<-mean(df1a$Y)
+df1a<-subset(df1,df1$within_radius7>0)
+ptct$Color[7]<-mean(df1a$Y)
+
+ggplot(ptct, aes(x = X1, y = X2, color = Color)) +
+  geom_segment(data = pairs,
+               aes(x = x1, y = y1, xend = x2, yend = y2),
+               color = "black") +
+  geom_point(aes(color = Color, size = C_scaled)) +
+  scale_color_gradientn(colours = rainbow(7)) +  # Rainbow color scale
+  scale_size(range = c(5, 15)) + 
+  guides(size = "none") + 
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_minimal() +
+  labs(title = "",
+       x = "X1", y = "X2", color = "Y Value")
+
+ggsave("demo202.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+ggplot(ptct, aes(x = X1, y = X2, color = Color)) +
+  geom_segment(data = pairs,
+               aes(x = x1, y = y1, xend = x2, yend = y2),
+               color = "black") +
+  geom_point(aes(color = Color, size = C_scaled)) +
+  scale_color_gradientn(colours = rainbow(7)) +  # Rainbow color scale
+  scale_size(range = c(5, 15)) + 
+  guides(size = "none") + 
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_void() +
+  labs(title = "",
+       x = "", y = "", color = "Y Value")
+
+ggsave("demo203.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+ggplot(ptct, aes(x = X1, y = X2, color = Color)) +
+  geom_segment(data = pairs,
+               aes(x = x1, y = y1, xend = x2, yend = y2),
+               color = "black") +
+  geom_point(aes(color = Color, size = C_scaled)) +
+  geom_text(aes(label = rownames(ptct)), size = 3, vjust = -3, color="black")+
+  scale_color_gradientn(colours = rainbow(7)) +  # Rainbow color scale
+  scale_size(range = c(5, 15)) + 
+  guides(size = "none") + 
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_void() +
+  labs(title = "",
+       x = "", y = "", color = "Y Value")
+
+ggsave("demo204.png", dpi = 300, width = 5.5, height = 4, units = "in")
+
+######################
+# Implementing TDABM #
+######################
+
+# Create the axes and outcome dataframes
+
+xd<-as.data.frame(cbind.data.frame(df1$X1,df1$X2))
+yd<-as.data.frame(df1$Y)
+
+names(xd)<-c("X1","X2")
+names(yd)<-"Y"
+
+bm1<-BallMapper(xd,yd,0.4)
+
+# Plot
+
+ColorIgraphPlot(bm1,seed_for_plotting=123)
+
+png("tdabmplot.png",width=5.5,height=4,units="in",res=300)
+ColorIgraphPlot(bm1,seed_for_plotting=123)
+dev.off()
+
+# Coloration by axes
+
+yd1<-as.data.frame(df1$X1)
+yd2<-as.data.frame(df1$X2)
+
+bm2<-BallMapper(xd,yd1,0.4)
+bm3<-BallMapper(xd,yd2,0.4)
+
+png("tdabmplotx1.png",width=5.5,height=4,units="in",res=300)
+ColorIgraphPlot(bm2,seed_for_plotting=123)
+dev.off()
+png("tdabmplotx2.png",width=5.5,height=4,units="in",res=300)
+ColorIgraphPlot(bm3,seed_for_plotting=123)
+dev.off()
+
+# Extract the coloration
+
+cd1<-as.data.frame(bm1$color)
+cd1$Ball<-seq(1:nrow(cd1))
+names(cd1)<-c("TDABM_Coloration","Ball")
+
+ptct<-merge(ptct,cd1,by="Ball")
+
+# Working out the points in each ball
+
+points_to_balls<-function(l){
+  a001<-length(l$landmarks)
+  a1<-matrix(0,nrow=1,ncol=2)
+  a1<-as.data.frame(a1)
+  names(a1)<-c("pt","ball")
+  for(i in 1:a001){
+    a<-as.data.frame(l$points_covered_by_landmarks[i])
+    names(a)<-"pt"
+    a$ball<-i
+    a1<-rbind.data.frame(a1,a)
+   }
+  a1<-a1[2:nrow(a1),]
+  return(a1)
+}
+
+pb1<-points_to_balls(bm1)
+names(pb1)<-c("pt","Ball")
+
+df1$pt<-seq(1:nrow(df1)) 
+df2<-merge(df1,pb1,by="pt")
+
+# Develop a new coloration based on the standard deviation of Y within the ball
+
+df2g<-group_by(df2,Ball)
+df2s<-summarise(df2g,sdy = sd(Y), .groups="drop")
+df2s<-as.data.frame(df2s)
+names(df2s)<-c("Ball","SDY")
+
+bm1$coloring<-df2s$SDY
+
+ColorIgraphPlot(bm1,seed_for_plotting=123)
+
+png("tdabmplotsdy.png",width=5.5,height=4,units="in",res=300)
+ColorIgraphPlot(bm1,seed_for_plotting=123)
+dev.off()
